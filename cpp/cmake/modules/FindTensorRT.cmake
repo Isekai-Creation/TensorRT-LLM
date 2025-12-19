@@ -18,6 +18,13 @@
 # TensorRT install path in docker image
 set(TensorRT_WELL_KNOWN_ROOT /usr/local/tensorrt)
 
+function(_tensorrt_set_cache out_var value)
+  if(value)
+    set(${out_var} "${value}" PARENT_SCOPE)
+    set(${out_var} "${value}" CACHE FILEPATH "TensorRT library" FORCE)
+  endif()
+endfunction()
+
 function(_tensorrt_find_real_lib out_var base_name)
   if(WIN32)
     return()
@@ -43,7 +50,7 @@ function(_tensorrt_find_real_lib out_var base_name)
     if(EXISTS "${_candidate}")
       file(SIZE "${_candidate}" _size)
       if(_size GREATER 0)
-        set(${out_var} "${_candidate}" PARENT_SCOPE)
+        _tensorrt_set_cache(${out_var} "${_candidate}")
         return()
       endif()
     endif()
