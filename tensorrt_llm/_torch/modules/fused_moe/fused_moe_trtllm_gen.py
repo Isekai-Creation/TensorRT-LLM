@@ -101,9 +101,16 @@ class TRTLLMGenFusedMoE(MoE):
         )
 
         sm_version = get_sm_version()
-        if sm_version >= 120:
+        allow_unsupported = os.environ.get(
+            "TRTLLM_GEN_ALLOW_UNSUPPORTED_SM", "0") not in ("", "0")
+        if sm_version >= 120 and not allow_unsupported:
             raise NotImplementedError(
                 "TRTLLMGenFusedMoE does not support SM120 and above.")
+        if sm_version >= 120 and allow_unsupported:
+            logger.warning(
+                "TRTLLMGenFusedMoE on SM120+ is experimental. "
+                "Set TRTLLM_GEN_ALLOW_UNSUPPORTED_SM=0 to disable."
+            )
 
         assert not self.smart_router, "Smart router is not supported in TRTLLMGenFusedMoE."
 
