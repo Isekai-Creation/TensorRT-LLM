@@ -110,6 +110,23 @@ KV_QUANT_CFG_CHOICES = {
 }
 
 
+def get_kv_cache_quant_cfg(mtq, kv_cache_dtype):
+    cfg_name = KV_QUANT_CFG_CHOICES.get(kv_cache_dtype)
+    if cfg_name and hasattr(mtq, cfg_name):
+        return getattr(mtq, cfg_name)["quant_cfg"]
+
+    kv_cfg = copy.deepcopy(KV_CACHE_CFG)
+    if kv_cache_dtype == "fp8":
+        for value in kv_cfg.values():
+            value.update({"num_bits": (4, 3)})
+        return kv_cfg
+    if kv_cache_dtype == "nvfp4":
+        raise ValueError(
+            "nvfp4 kv cache requires a modelopt version that provides NVFP4_KV_CFG"
+        )
+    return kv_cfg
+
+
 def quant_cfg_choices():
     import modelopt.torch.quantization as mtq
     QUANT_CFG_CHOICES = {
@@ -760,12 +777,9 @@ def quantize_and_export(*,
                     }
 
             if kv_cache_dtype is not None:
-                if kv_cache_dtype == "fp8":
-                    kv_cache_quant_cfg = getattr(
-                        mtq, KV_QUANT_CFG_CHOICES[kv_cache_dtype])["quant_cfg"]
-                    quant_cfg["quant_cfg"].update(kv_cache_quant_cfg)
-                else:
-                    quant_cfg["quant_cfg"].update(KV_CACHE_CFG)  # type: ignore
+                kv_cache_quant_cfg = get_kv_cache_quant_cfg(
+                    mtq, kv_cache_dtype)
+                quant_cfg["quant_cfg"].update(kv_cache_quant_cfg)  # type: ignore
 
             # Gemma 7B has accuracy regression using alpha 1. We set 0.5 instead.
             if model_type == "gemma" and "int8_sq" in qformat:
@@ -1191,10 +1205,9 @@ def quantize_nemo_and_export(*, nemo_ckpt_path, decoder_type, calib_dataset,
             weight_quantizer["block_sizes"][-1] = awq_block_size
 
         if kv_cache_dtype is not None:
-            if kv_cache_dtype == "fp8":
-                for value in KV_CACHE_CFG.values():
-                    value.update({"num_bits": (4, 3)})  # type: ignore
-            quant_cfg["quant_cfg"].update(KV_CACHE_CFG)  # type: ignore
+            kv_cache_quant_cfg = get_kv_cache_quant_cfg(
+                mtq, kv_cache_dtype)
+            quant_cfg["quant_cfg"].update(kv_cache_quant_cfg)  # type: ignore
 
         print_rank_0(quant_cfg)
 
