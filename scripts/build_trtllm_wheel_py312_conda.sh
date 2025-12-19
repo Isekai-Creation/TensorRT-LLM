@@ -196,5 +196,15 @@ PY
   fi
 fi
 
+# Prefer UCX from conda when available to satisfy newer UCXX requirements.
+if [[ -z "${UCX_ROOT:-}" && -n "${CONDA_PREFIX:-}" ]]; then
+  if [[ -f "${CONDA_PREFIX}/lib/cmake/ucx/ucx-config.cmake" ]]; then
+    export UCX_ROOT="${CONDA_PREFIX}"
+    export LD_LIBRARY_PATH="${UCX_ROOT}/lib:${LD_LIBRARY_PATH:-}"
+    export LIBRARY_PATH="${UCX_ROOT}/lib:${LIBRARY_PATH:-}"
+    export CMAKE_PREFIX_PATH="${UCX_ROOT}:${CMAKE_PREFIX_PATH:-}"
+  fi
+fi
+
 # Use the active environment without creating a nested venv.
 exec python "${ROOT_DIR}/scripts/build_wheel.py" --no-venv "${args[@]}"

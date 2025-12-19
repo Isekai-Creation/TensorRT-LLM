@@ -2,43 +2,7 @@
 set -euxo pipefail
 cd /kaggle/working/TensorRT-LLM
 
-export TRTLLM_SKIP_REQUIREMENTS="${TRTLLM_SKIP_REQUIREMENTS:-1}"
-
-DATASET_ID="${TRT_KAGGLE_DATASET_ID:-mnhhang/tensorrt-10-14-1-48}"
-DATASET_VERSION="${TRT_KAGGLE_DATASET_VERSION:-1}"
-DATASET_DIR="${TRT_KAGGLE_TRT_DIRNAME:-TensorRT-10.14.1.48}"
-TRT_ROOT="${TRT_ROOT:-}"
-if [[ -z "${TRT_ROOT}" && -d "/kaggle/input/tensorrt-10-14-1-48/${DATASET_DIR}" ]]; then
-  TRT_ROOT="/kaggle/input/tensorrt-10-14-1-48/${DATASET_DIR}"
-elif [[ -z "${TRT_ROOT}" ]]; then
-  echo "[install] Downloading TensorRT dataset from Kaggle" >&2
-  tmp_root_file="$(mktemp)"
-  KAGGLEHUB_DISABLE_PROGRESS=1 python3 - <<'PY' "${tmp_root_file}"
-import os
-import pathlib
-import sys
-
-try:
-    import kagglehub
-except Exception as exc:
-    raise SystemExit(
-        "kagglehub is required to download TensorRT. Install it with: pip install kagglehub"
-    ) from exc
-
-dataset = os.environ.get("TRT_KAGGLE_DATASET_ID", "mnhhang/tensorrt-10-14-1-48")
-path = kagglehub.dataset_download(dataset)
-pathlib.Path(sys.argv[1]).write_text(path)
-PY
-  TRT_ROOT="$(cat "${tmp_root_file}")"
-  rm -f "${tmp_root_file}"
-  if [[ -d "${TRT_ROOT}/${DATASET_DIR}/lib" ]]; then
-    TRT_ROOT="${TRT_ROOT}/${DATASET_DIR}"
-  fi
-fi
-if [[ -z "${TRT_ROOT}" ]]; then
-  echo "ERROR: TRT_ROOT is not set or TensorRT dataset is missing." >&2
-  exit 1
-fi
+TRT_ROOT=/kaggle/input/tensorrt-10-14-1-48/TensorRT-10.14.1.48
 
 TRT_SDK=/kaggle/working/trt_sdk
 DRV=/kaggle/working/driver_shims
