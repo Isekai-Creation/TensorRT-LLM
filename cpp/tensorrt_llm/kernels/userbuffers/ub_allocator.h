@@ -19,16 +19,11 @@
 #if ENABLE_MULTI_DEVICE
 #include "nccl.h"
 #include "userbuffers.h"
-#ifndef NCCL_VERSION_CODE
-#define NCCL_VERSION_CODE 0
-#endif
-#ifndef NCCL_VERSION
-#define NCCL_VERSION(MAJOR, MINOR, PATCH) ((MAJOR) * 10000 + (MINOR) * 100 + (PATCH))
-#endif
-#if NCCL_VERSION_CODE < NCCL_VERSION(2, 20, 0)
+#ifdef NCCL_WIN_COLL_SYMMETRIC
+#define TLLM_NCCL_HAS_COMM_WINDOW 1
+#else
+#define TLLM_NCCL_HAS_COMM_WINDOW 0
 using ncclWindow_t = void*;
-#endif
-#ifndef NCCL_WIN_COLL_SYMMETRIC
 #define NCCL_WIN_COLL_SYMMETRIC 0
 #endif
 #ifdef _WIN32
