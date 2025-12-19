@@ -23,6 +23,10 @@
 #include <cooperative_groups.h>
 #include <cooperative_groups/reduce.h>
 
+#ifndef FLT_MAX
+#define FLT_MAX 3.402823466e+38F
+#endif
+
 namespace cg = cooperative_groups;
 using namespace tensorrt_llm::common;
 
