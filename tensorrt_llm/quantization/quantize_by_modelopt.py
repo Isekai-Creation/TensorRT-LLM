@@ -184,9 +184,22 @@ MODEL_NAME_PATTERN_MAP = {
     "DeepseekForCausalLM": "deepseek",
     "GraniteForCausalLM": "granite",
     "GraniteMoeForCausalLM": "granitemoe",
+    "GptOssForCausalLM": "gpt_oss",
     "T5": "t5",
     "Bart": "bart"
 }
+
+
+def _is_mxfp4_quant_config(quantization_config):
+    if quantization_config is None:
+        return False
+    if isinstance(quantization_config, dict):
+        quant_method = quantization_config.get("quant_method")
+    else:
+        quant_method = getattr(quantization_config, "quant_method", None)
+    if quant_method is None:
+        return False
+    return "mxfp4" in str(quant_method).lower()
 
 MULTIMODAL_DATASETS = ['scienceqa', 'science_qa']
 
@@ -317,7 +330,8 @@ def _get_llava_qwen_model(model_dir, dtype, device):
 def get_model(ckpt_path: str,
               dtype: str = 'bfloat16',
               device: str = 'cuda',
-              device_map: str = "auto"):
+              device_map: str = "auto",
+              dequantize_mxfp4: bool = False):
     logger.info(f"Initializing model from {ckpt_path}")
     # Note: VILA model is not in public HF model zoo yet. We need to explicitly import from the git repo
     hf_config = get_hf_config(ckpt_path)
@@ -355,11 +369,19 @@ def get_model(ckpt_path: str,
                                                       trust_remote_code=True)
         model = EncDecModelWrapper(hf_model=model)
     else:
+        quantization_kwargs = {}
+        if dequantize_mxfp4 and _is_mxfp4_quant_config(
+                getattr(hf_config, "quantization_config", None)):
+            from transformers import Mxfp4Config
+            quantization_kwargs["quantization_config"] = Mxfp4Config(
+                dequantize=True)
+
         model = model_cls.from_pretrained(
             ckpt_path,
             device_map=device_map if device != "cpu" else "cpu",
             dtype="auto",
-            trust_remote_code=True)
+            trust_remote_code=True,
+            **quantization_kwargs)
         if hf_config.model_type in ["llava", "internvl_chat"]:
             model = model.language_model
         elif hf_config.model_type == "qwen2_vl":
@@ -721,7 +743,26 @@ def quantize_and_export(*,
     hf_config = get_hf_config(model_dir)
     dtype = infer_dtype(dtype, getattr(hf_config, 'torch_dtype', None))
 
-    model = get_model(model_dir, dtype, device=device, device_map=device_map)
+    dequantize_mxfp4 = _is_mxfp4_quant_config(
+        getattr(hf_config, "quantization_config", None))
+    if dequantize_mxfp4 and qformat in ["full_prec", "int8_wo", "int4_wo"]:
+        dequantize_mxfp4 = False
+
+    env_override = os.environ.get("TRTLLM_DEQUANTIZE_MXFP4")
+    if env_override is not None:
+        dequantize_mxfp4 = env_override.strip().lower() not in ("0", "false",
+                                                                "no")
+
+    if dequantize_mxfp4:
+        logger.info(
+            "Detected MXFP4 quantized model; loading with dequantize=True for re-quantization."
+        )
+
+    model = get_model(model_dir,
+                      dtype,
+                      device=device,
+                      device_map=device_map,
+                      dequantize_mxfp4=dequantize_mxfp4)
     model_type = get_model_type(model)
     is_enc_dec = model_type_is_enc_dec(model_type)
     if "vila" in model_dir:
@@ -827,6 +868,24 @@ def quantize_and_export(*,
 
         if model_type == 'mllama':
             model = model.language_model
+
+        if model_type in ["gpt_oss", "gptoss"]:
+            from modelopt.torch.export import export_hf_checkpoint
+
+            export_hf_checkpoint(
+                model.hf_model if is_enc_dec else model,
+                getattr(torch, dtype),
+                export_dir=export_path,
+            )
+
+            end_time = time.time()
+            logger.info(
+                "Quantized model exported to {} \nTotal time used {:.2f} s.".format(
+                    export_path, end_time - start_time))
+
+            del model
+            release_gc()
+            return
 
         export_tensorrt_llm_checkpoint(
             model.hf_model if is_enc_dec else model,
