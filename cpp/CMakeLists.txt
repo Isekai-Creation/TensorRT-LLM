@@ -239,6 +239,15 @@ endif()
 # TRT dependencies
 find_package(TensorRT 10 REQUIRED COMPONENTS OnnxParser)
 set(TRT_LIB TensorRT::NvInfer)
+if(NOT WIN32 AND TensorRT_LIBRARY)
+  get_filename_component(TensorRT_LIBRARY_DIR "${TensorRT_LIBRARY}" DIRECTORY)
+  if(TensorRT_LIBRARY_DIR)
+    set(CMAKE_EXE_LINKER_FLAGS
+        "${CMAKE_EXE_LINKER_FLAGS} -Wl,-rpath-link,${TensorRT_LIBRARY_DIR}")
+    set(CMAKE_SHARED_LINKER_FLAGS
+        "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-rpath-link,${TensorRT_LIBRARY_DIR}")
+  endif()
+endif()
 
 get_filename_component(TRT_LLM_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR} PATH)
 

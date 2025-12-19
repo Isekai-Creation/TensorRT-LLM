@@ -2,6 +2,8 @@
 set -euxo pipefail
 cd /kaggle/working/TensorRT-LLM
 
+export TRTLLM_SKIP_REQUIREMENTS="${TRTLLM_SKIP_REQUIREMENTS:-1}"
+
 TRT_ROOT=/kaggle/input/tensorrt-10-14-1-48/TensorRT-10.14.1.48
 
 TRT_SDK=/kaggle/working/trt_sdk
@@ -58,11 +60,17 @@ if [[ -n "${NCCL_ROOT}" ]]; then
   export CMAKE_PREFIX_PATH="${NCCL_ROOT}:${CMAKE_PREFIX_PATH:-}"
 fi
 
+NCCL_ARGS=()
+if [[ -n "${NCCL_ROOT}" ]]; then
+  NCCL_ARGS=(--nccl_root "${NCCL_ROOT}")
+fi
+
 python3 ./scripts/build_wheel.py \
   --no-venv \
   # --clean --clean_wheel \
   --cuda_architectures "90-real" \
   --trt_root "$TRT_SDK" \
+  "${NCCL_ARGS[@]}" \
   -D CMAKE_PREFIX_PATH="$TRT_SDK" \
   -D CUDAToolkit_ROOT=/usr/local/cuda \
   -D FAST_BUILD=ON \
